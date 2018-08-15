@@ -1,0 +1,217 @@
+	
+以太坊同步模式源码解析
+
+    以太坊节点同步的时候支持三种模式：fast,light,full。而官方文档中已经明确–fast和–light参数选项已经被废弃。那么本篇博客就带大家看一下关于此参数的源代码，深入了解同步模式的底层转变。
+
+方法定义源代码解析
+
+首选从源代码中找到eth/downloader/modes.go。从文件的名字就可得知此文件是用来定义模式的，所谓modes就是指的同步模式。下面我们看一下此文件内的所有源代码，然后再逐一分析。
+
+package downloader
+
+import "fmt"
+
+// SyncMode represents the synchronisation mode of the downloader.
+type SyncMode int
+
+const (
+    FullSync  SyncMode = iota // Synchronise the entire blockchain history from full blocks
+    FastSync                  // Quickly download the headers, full sync only at the chain head
+    LightSync                 // Download only the headers and terminate afterwards
+)
+
+func (mode SyncMode) IsValid() bool {
+    return mode >= FullSync && mode <= LightSync
+}
+
+// String implements the stringer interface.
+func (mode SyncMode) String() string {
+    switch mode {
+    case FullSync:
+        return "full"
+    case FastSync:
+        return "fast"
+    case LightSync:
+        return "light"
+    default:
+        return "unknown"
+    }
+}
+
+func (mode SyncMode) MarshalText() ([]byte, error) {
+    switch mode {
+    case FullSync:
+        return []byte("full"), nil
+    case FastSync:
+        return []byte("fast"), nil
+    case LightSync:
+        return []byte("light"), nil
+    default:
+        return nil, fmt.Errorf("unknown sync mode %d", mode)
+    }
+}
+
+func (mode *SyncMode) UnmarshalText(text []byte) error {
+    switch string(text) {
+    case "full":
+        *mode = FullSync
+    case "fast":
+        *mode = FastSync
+    case "light":
+        *mode = LightSync
+    default:
+        return fmt.Errorf(`unknown sync mode %q, want "full", "fast" or "light"`, text)
+    }
+    return nil
+}
+
+SyncMode类型定义
+
+type SyncMode int
+
+
+同步的类型是SyncMode，而SyncMode的真实类型是int。
+SyncMode常量定义
+
+const (
+    FullSync  SyncMode = iota // 同步完整的区块信息
+    FastSync                  // 快速同步header，然后再跟进header同步全部内容
+    LightSync                 // 只下载header并在之后终止
+)
+
+
+const常量的定义给不同模式分别赋值：
+- full：0
+- fast: 1
+- light: 2
+String接口实现
+
+此段代码实现了stringer的接口，当被调用时会返回对应的字符串描述：full，fast，light，unknown。此方法类似与Java中的toString方法。
+
+// String implements the stringer interface.
+func (mode SyncMode) String() string {
+    switch mode {
+    case FullSync:
+        return "full"
+    case FastSync:
+        return "fast"
+    case LightSync:
+        return "light"
+    default:
+        return "unknown"
+    }
+}
+IsValid方法
+
+func (mode SyncMode) IsValid() bool {
+    return mode >= FullSync && mode <= LightSync
+}
+
+
+此方法比较简单，当传入的mode大于等于0并且小于等于2时返回true。可以简单理解为是一个合法性的校验。
+TextMarshaler方法实现
+
+func (mode SyncMode) MarshalText() ([]byte, error) {
+    switch mode {
+    case FullSync:
+        return []byte("full"), nil
+    case FastSync:
+        return []byte("fast"), nil
+    case LightSync:
+        return []byte("light"), nil
+    default:
+        return nil, fmt.Errorf("unknown sync mode %d", mode)
+    }
+}
+
+此方法实现了encoding包下的TextMarshaler接口的MarshalText方法，根据传入的同步类型值返回字符串编码（UTF-8-encoded）之后的文本内容。可以简单理解为SyncMode（int）和文本内容的转换。
+UnmarshalText方法实现
+
+func (mode *SyncMode) UnmarshalText(text []byte) error {
+    switch string(text) {
+    case "full":
+        *mode = FullSync
+    case "fast":
+        *mode = FastSync
+    case "light":
+        *mode = LightSync
+    default:
+        return fmt.Errorf(`unknown sync mode %q, want "full", "fast" or "light"`, text)
+    }
+    return nil
+}
+
+此方法实现了encoding包下的TextUnmarshaler接口的UnmarshalText方法，根据传入的文本内容返回SyncMode类型对应的值。可以简单理解为文本内容和SyncMode（int）的转换。
+方法使用源代码解析
+
+上面我们了解了同步模式的类型和方法定义，现在我们就看一下同步的过程中是怎么使用的。
+默认同步模式的定义
+
+在cmd/utils/flags.go文件内定义了项目启动时的基本配置参数，我们可以找到此段代码：
+
+defaultSyncMode = eth.DefaultConfig.SyncMode
+    SyncModeFlag    = TextMarshalerFlag{
+        Name:  "syncmode",
+        Usage: `Blockchain sync mode ("fast", "full", or "light")`,
+        Value: &defaultSyncMode,
+    }
+这里定义了默认的同步模式，也就是说如果不传递参数时，同步模式就是按照这里的定义来执行。进一步看一下eth.DefaultConfig.SyncMode的值为多少：
+
+var DefaultConfig = Config{
+    SyncMode: downloader.FastSync,
+    Ethash: ethash.Config{
+        CacheDir:       "ethash",
+        CachesInMem:    2,
+        CachesOnDisk:   3,
+        DatasetsInMem:  1,
+        DatasetsOnDisk: 2,
+    },
+    NetworkId:     1,
+    LightPeers:    100,
+    DatabaseCache: 768,
+    TrieCache:     256,
+    TrieTimeout:   5 * time.Minute,
+    GasPrice:      big.NewInt(18 * params.Shannon),
+
+    TxPool: core.DefaultTxPoolConfig,
+    GPO: gasprice.Config{
+        Blocks:     20,
+        Percentile: 60,
+    },
+}
+
+
+大家已经看到了，默认的值为downloader.FastSync，至此已经得知如果不传递同步类型参数，geth采用fast模式进行同步。
+同步模式中途的变更
+
+经过上面的代码分析我们是否就确定，如果不传递参数geth一直就是通过fast模式进行同步的么？那么，再看看下面的代码分析吧。
+
+在eth/handler.go中方法NewProtocolManager中有这样一段代码：
+
+// Figure out whether to allow fast sync or not
+    if mode == downloader.FastSync && blockchain.CurrentBlock().NumberU64() > 0 {
+        log.Warn("Blockchain not empty, fast sync disabled")
+        mode = downloader.FullSync
+    }
+    if mode == downloader.FastSync {
+        manager.fastSync = uint32(1)
+    }
+
+
+这段代码是在创建ProtocolManager时进行同步模式的参数设置。blockchain.CurrentBlock()获得当前的区块信息，而NumberU64()的实现如下：
+
+func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
+
+    1
+
+也就是说NumberU64()返回的是最新区块的头部的number。
+
+现在整理一下这段代码的整体逻辑就是，当同步模式为fast并最新区块的高度大于0（已经同步过一部分数据）时，程序自动将同步模式转变为full，并打印警告信息。到这里，整个区块的同步模式已经豁然开朗了。
+归纳总结
+
+通过上面代付的分析，我们得到以下结论：
+- geth支持三种同步模式：fast，full，light。
+- 启动geth节点时，如果不传递同步模式参数，默认使用fast模式进行同步。
+- 如果不传递同步模式参数或传递fast，第一次启动默认使用fast并且当前区块为0，因此采用fast进行同步。
+- 如果不传递同步模式或传递fast，第二次启动默认使用fast，但当前区块的header编号不为0，程序自动将fast模式转变为full模式。
+- 因此，同步区块数据量的多少与使用full时的时机有一定关系。
