@@ -1,0 +1,19 @@
+
+1. light 节点同步模式，需要在geth启动时添加 --light
+
+解释：--light 轻节点模式，只会同步区块头信息，可以完成基本的命令操作 Enable light client mode
+
+2.但是启动light节点以后，通过admin.addPeers("0x***")，无法正确添加full节点，此时查看这里的解释：
+http://mawentao.cn/2017/04/11/geth-2/ 
+https://ethereum.stackexchange.com/questions/39206/geth-private-network-unable-to-add-light-node/39208
+
+3.因为full节点没有配置--lightsevr 
+解释：--lightserv     value 设置轻节点模式的请求时间最大占比，由于轻节点不会同步区块内部信息，
+                    当查询区块信息时（交易信息，特定区块高度信息等）会向全节点其他节点请求数据，
+                    设置最大请求时间占比。范围为：0-90，默认为0
+
+即light节点向自己添加的full 节点请求数据时间占比，所以无法通过admin.addPeers()添加full节点。
+
+解决办法：full节点启动的时候，添加--lightsevr 25 选项，就是给light节点请求数据分配时间占比。
+
+4.此时，light节点通过admin.addPeers 可以正确添加full节点了
