@@ -1,0 +1,8 @@
+
+
+1.下载mist release版本：https://github.com/ethereum/mist/releases
+2.解压到相关目录，这里解压到mist目录
+2.启动ethereumwallet 并且关联到本地测试节点
+  #cd mist
+  #./ethereumwallet --gethpath /home/van/app/mist-app/geth --network test  --node-datadir /home/van/app/mist-app/data --node-rpc --syncmode fast
+  
