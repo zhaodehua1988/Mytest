@@ -1,0 +1,2 @@
+geth attach ipc: geth.ipc 路径
+./getf  attach ipc:/home/server/disk2/etf-full/geth.ipc
