@@ -1,0 +1,49 @@
+/Linuxrc 执行init 进程初始化文件。主要工作是把已安装根文件系统中的/etc 安装为ramfs，
+并拷贝/mnt/etc/目录下所有文件到/etc，这里存放系统启动后的许多特殊文件；接着Linu
+xrc 重新构建文件分配表inittab；之后执行系统初始化进程/sbin/init。
+/mnt/etc/init.d/rcS 完成各个文件系统的 mount，再执行/usr/etc/rc.local；通过rcS 可
+以调用 dhcp 程序配置网络。rcS 执行完了以后，init 就会在一个 console 上，按照 ini
+ttab 的指示开一个 shell，或者是开 getty + login，这样用户就会看到提示输入用户名的
+提示符。
+/usr/etc/rc.local 这是被init.d/rcS 文件调用执行的特殊文件，与Linux 系统硬件平台相关，
+如安装核心模块、进行网络配置、运行应用程序、启动图形界面等。
+/usr/etc/profile rc.local 首先执行该文件配置应用程序需要的环境变量等。
+Linuxrc 
+#!/bin/sh
+echo "mount /etc as ramfs"
+/bin/mount -n -t ramfs ramfs /etc
+/bin/cp -a /mnt/etc/* /etc
+echo "re-create the /etc/mtab entries"
+# re-create the /etc/mtab entries
+/bin/mount -f -t cramfs -o remount,ro /dev/mtdblock/3 /
+/bin/mount -f -t ramfs ramfs /etc
+exec /sbin/init
+
+rcS
+/mnt/etc/init.
+d/
+#!/bin/sh
+/bin/mount -a
+exec /usr/etc/rc.local
+
+
+rc.local
+/usr/etc/
+#!/bin/sh
+. /usr/etc/profile
+echo "HELLO! Embest"
+echo "ifconfig eth0 192.168.0.10"
+ifconfig eth0 192.168.0.10 􀃅 可自行配置开发板IP
+
+
+Profile
+/usr/etc/
+#!/bin/sh
+PATH=/bin:/sbin:/usr/bin:/usr/sbin 􀃅 设置命令工具所在位置
+ 
+我对这其中的执行顺序理解：
+我在我的开发板中的（位置）/etc/init.d/rcS 文件中添加了关于对QT应用程序的执行设置
+需要的库函数的路径做export声明，鉴于对上述执行顺序的理解，我感觉对在rcS文件中添加
+并自动运行的应用程序，必须要指明所需支持库的路径。若在(位置)/etc/profile文件中添
+加对应用程序库的路径声明是不行的，因为rcS文件中程序的要比/etc/profile中的程序先执行
+。所以，想想吧……
